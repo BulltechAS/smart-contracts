@@ -99,32 +99,7 @@ contract('BullTokenMainsale', function([
   describe("crowdsale has started", function() {
 
     beforeEach(async function() {
-      await increaseTimeTo(this.firstTimeWithNormalRates)
-    });
-
-    it("increases token balance of investor with investment times rate", async function() {
-      await this.crowdsale.sendTransaction({ from: purchaser, value: validInvestment });
-      const balance = await token.balanceOf(purchaser);
-      expect(balance).to.bignumber.equal(validInvestment.mul(rate));
-    });
-
-    it("decreases token balance of owner when someone buys tokens", async function() {
-      const prevOwnerBalance = await token.balanceOf(owner);
-      await this.crowdsale.sendTransaction({ from: purchaser, value: validInvestment });
-      const ownerBalance = await token.balanceOf(owner);
-
-      expect(ownerBalance.toNumber()).to.equal(prevOwnerBalance.toNumber() - (validInvestment.mul(rate)));
-    });
-
-    it("is possible to buy tokens from two different accounts", async function() {
-      await this.crowdsale.sendTransaction({ from: purchaser, value: validInvestment });
-      await this.crowdsale.sendTransaction({ from: purchaser2, value: validInvestment });
-
-      const balance = await token.balanceOf(purchaser);
-      const balance2 = await token.balanceOf(purchaser2);
-
-      expect(balance).to.bignumber.equal(validInvestment.mul(rate));
-      expect(balance2).to.bignumber.equal(validInvestment.mul(rate));
+      await increaseTimeTo(this.startTime);
     });
 
     it("increases weiRaised when tokens are bought", async function() {
@@ -136,7 +111,7 @@ contract('BullTokenMainsale', function([
       expect(weiRaised).to.bignumber.equal(validInvestment.mul(2));
     });
 
-    it("is NOT possible to transfer tokens ", async function() {
+    it("does NOT let anyone transfer tokens if they are not the owner", async function() {
       await this.crowdsale.sendTransaction({ from: purchaser, value: validInvestment });
       try {
         await token.transfer(purchaser2, validInvestment, { from: purchaser });
@@ -160,6 +135,71 @@ contract('BullTokenMainsale', function([
       } catch (error) {
         assertRevert(error);
       }
+    });
+
+    describe("bonus period is over", function() {
+
+      beforeEach(async function() {
+        await increaseTimeTo(this.firstTimeWithNormalRates);
+      });
+
+      it("increases token balance of investor with investment times rate after the bonus period", async function() {
+        await this.crowdsale.sendTransaction({ from: purchaser, value: validInvestment });
+        const balance = await token.balanceOf(purchaser);
+        expect(balance).to.bignumber.equal(validInvestment.mul(rate));
+      });
+
+      it("decreases token balance of owner when someone buys tokens", async function() {
+        const prevOwnerBalance = await token.balanceOf(owner);
+        await this.crowdsale.sendTransaction({ from: purchaser, value: validInvestment });
+        const ownerBalance = await token.balanceOf(owner);
+
+        expect(ownerBalance.toNumber()).to.equal(prevOwnerBalance.toNumber() - (validInvestment.mul(rate)));
+      });
+
+      it("is possible to buy tokens from two different accounts", async function() {
+        await this.crowdsale.sendTransaction({ from: purchaser, value: validInvestment });
+        await this.crowdsale.sendTransaction({ from: purchaser2, value: validInvestment });
+
+        const balance = await token.balanceOf(purchaser);
+        const balance2 = await token.balanceOf(purchaser2);
+
+        expect(balance).to.bignumber.equal(validInvestment.mul(rate));
+        expect(balance2).to.bignumber.equal(validInvestment.mul(rate));
+      });
+
+    });
+
+    describe("goal is reached before initial end time", function() {
+
+      beforeEach(async function() {
+        await increaseTimeTo(this.startTime);
+        const moreThanGoal = goal.add(new BigNumber(100000));
+        await this.crowdsale.sendTransaction({ from: purchaser, value: moreThanGoal });
+      });
+
+      it("does NOT end the crowdsale immediately", async function() {
+        expect(await this.crowdsale.hasEnded()).to.equal(false);
+      });
+
+      it("the next buyer is allowed to buy tokens", async function() {
+        await this.crowdsale.sendTransaction({ from: purchaser2, value: minimumInvestment });
+      });
+
+      it("ends the crowdsale at initialEndTime", async function() {
+        await increaseTimeTo(this.initialEndTime);
+        expect(await this.crowdsale.hasEnded()).to.equal(true);
+      });
+    });
+
+    describe("goal is reached after initial end time", function() {
+      it("does NOT end the crowdsale", async function() {
+        await increaseTimeTo(this.initialEndTime);
+        const moreThanGoal = goal.add(new BigNumber(100000));
+        await this.crowdsale.sendTransaction({ from: purchaser, value: moreThanGoal });
+        await this.crowdsale.sendTransaction({ from: purchaser2, value: minimumInvestment });
+        expect(await this.crowdsale.hasEnded()).to.equal(false);
+      });
     });
 
     describe("minimum investments", function() {
@@ -190,30 +230,6 @@ contract('BullTokenMainsale', function([
         expect(await this.crowdsale.hasEnded()).to.equal(true);
       });
 
-    });
-
-    describe("goal is reached before initial end time", function() {
-      it("the next buyer is NOT allowed to buy tokens", async function() {
-        const moreThanGoal = goal.add(new BigNumber(1));
-        await this.crowdsale.sendTransaction({ from: purchaser, value: moreThanGoal });
-        try {
-          await this.crowdsale.sendTransaction({ from: purchaser2, value: minimumInvestment });
-          assert.fail();
-        } catch (error) {
-          assertRevert(error);
-        }
-        expect(await this.crowdsale.hasEnded()).to.equal(true);
-      });
-    });
-
-    describe("goal is reached after initial end time", function() {
-      it("does NOT end the crowdsale", async function() {
-        await increaseTimeTo(this.initialEndTime + duration.seconds(1));
-        const moreThanGoal = goal.add(new BigNumber(1));
-        await this.crowdsale.sendTransaction({ from: purchaser, value: moreThanGoal });
-        await this.crowdsale.sendTransaction({ from: purchaser2, value: minimumInvestment });
-        expect(await this.crowdsale.hasEnded()).to.equal(false);
-      });
     });
 
     describe("the last investment before ETH cap is reached", function() {
@@ -359,7 +375,7 @@ contract('BullTokenMainsale', function([
     });
 
     it("gives no token bonus even after one day if the max bonus tokens have been sold out", async function() {
-      let pointInTime = this.startTime;
+      let pointInTime = this.startTime + duration.seconds(1);
       await increaseTimeTo(pointInTime);
 
       let priceForBuyingAllBonusTokens = maximumBonusTokens.div(rate);

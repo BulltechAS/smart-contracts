@@ -14,25 +14,26 @@ contract BullTokenMainsale is CappedCrowdsale, FinalizableCrowdsale {
   uint256 public goal;
   uint256 public maxTokensOnDiscount;
   uint256 public tokensSold;
+  bool public goalReachedBeforeInitialEndTime = false;
 
   mapping (uint256 => uint256) public dayNumberToBonusPercentage;
 
   function BullTokenMainsale(
-    uint256 _startTime,
-    uint256 _initialEndTime,
-    uint256 _endTime,
-    uint256 _rate,
-    uint256 _goal,
-    uint256 _cap,
-    uint256 _maxTokensOnDiscount,
-    uint256 _minimumInvestment,
-    address _tokenAddress,
-    address _wallet,
-    address _whitelistAddress
+  uint256 _startTime,
+  uint256 _initialEndTime,
+  uint256 _endTime,
+  uint256 _rate,
+  uint256 _goal,
+  uint256 _cap,
+  uint256 _maxTokensOnDiscount,
+  uint256 _minimumInvestment,
+  address _tokenAddress,
+  address _wallet,
+  address _whitelistAddress
   ) public
-    CappedCrowdsale(_cap)
-    FinalizableCrowdsale()
-    BurnableCrowdsale(_startTime, _endTime, _rate, _wallet, _tokenAddress)
+  CappedCrowdsale(_cap)
+  FinalizableCrowdsale()
+  BurnableCrowdsale(_startTime, _endTime, _rate, _wallet, _tokenAddress)
   {
     //As goal needs to be met for a successful crowdsale
     //the value needs to less or equal than a cap which is limit for accepted funds
@@ -98,6 +99,10 @@ contract BullTokenMainsale is CappedCrowdsale, FinalizableCrowdsale {
     weiRaised = weiRaised.add(weiAmount);
     tokensSold = tokensSold.add(tokens);
 
+    if (goalReached() && !initialEndTimeReached()) {
+      goalReachedBeforeInitialEndTime = true;
+    }
+
     token.transferFrom(owner, beneficiary, tokens);
     TokenPurchase(msg.sender, beneficiary, weiAmount, tokens);
     forwardFundsToWallet(weiAmount);
@@ -116,7 +121,7 @@ contract BullTokenMainsale is CappedCrowdsale, FinalizableCrowdsale {
   // overriding CappedCrowdsale#hasEnded to add logic for possible endtime extension + running out of tokens
   // @return true if crowdsale has ended
   function hasEnded() public view returns (bool) {
-    return (goalReached() && initialEndTimeNotReached()) || super.hasEnded() || capReached() || outOfTokens();
+    return (goalReachedBeforeInitialEndTime && initialEndTimeReached()) || super.hasEnded() || capReached() || outOfTokens();
   }
 
   function outOfTokens() public view returns (bool) {
@@ -131,8 +136,8 @@ contract BullTokenMainsale is CappedCrowdsale, FinalizableCrowdsale {
     return weiRaised >= goal;
   }
 
-  function initialEndTimeNotReached() public view returns (bool) {
-    return now < initialEndTime;
+  function initialEndTimeReached() public view returns (bool) {
+    return now >= initialEndTime;
   }
 
   // @return true if crowdsale has ended
