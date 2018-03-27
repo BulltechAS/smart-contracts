@@ -19,21 +19,21 @@ contract BullTokenMainsale is CappedCrowdsale, FinalizableCrowdsale {
   mapping (uint256 => uint256) public dayNumberToBonusPercentage;
 
   function BullTokenMainsale(
-  uint256 _startTime,
-  uint256 _initialEndTime,
-  uint256 _endTime,
-  uint256 _rate,
-  uint256 _goal,
-  uint256 _cap,
-  uint256 _maxTokensOnDiscount,
-  uint256 _minimumInvestment,
-  address _tokenAddress,
-  address _wallet,
-  address _whitelistAddress
+    uint256 _startTime,
+    uint256 _initialEndTime,
+    uint256 _endTime,
+    uint256 _rate,
+    uint256 _goal,
+    uint256 _cap,
+    uint256 _maxTokensOnDiscount,
+    uint256 _minimumInvestment,
+    address _tokenAddress,
+    address _wallet,
+    address _whitelistAddress
   ) public
-  CappedCrowdsale(_cap)
-  FinalizableCrowdsale()
-  BurnableCrowdsale(_startTime, _endTime, _rate, _wallet, _tokenAddress)
+    CappedCrowdsale(_cap)
+    FinalizableCrowdsale()
+    BurnableCrowdsale(_startTime, _endTime, _rate, _wallet, _tokenAddress)
   {
     //As goal needs to be met for a successful crowdsale
     //the value needs to less or equal than a cap which is limit for accepted funds
@@ -161,10 +161,12 @@ contract BullTokenMainsale is CappedCrowdsale, FinalizableCrowdsale {
     uint256 dayNumber = getCurrentDayNumber();
     uint256 baseTokenAmount = _weiAmount.mul(rate);
 
-    if(isABonusDay(dayNumber) && tokensSold.add(baseTokenAmount) <= maxTokensOnDiscount) {
+    if (isABonusDay(dayNumber)) {
       uint256 percentageForDay = dayNumberToBonusPercentage[dayNumber];
       uint256 bonusTokenAmount = baseTokenAmount.mul(percentageForDay).div(100);
-      return baseTokenAmount.add(bonusTokenAmount);
+      if (tokensSold.add(baseTokenAmount).add(bonusTokenAmount) <= maxTokensOnDiscount) {
+        return baseTokenAmount.add(bonusTokenAmount);
+      }
     }
 
     return baseTokenAmount;

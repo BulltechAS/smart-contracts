@@ -24,7 +24,7 @@ contract('BullTokenMainsale', function([
   const rate = new BigNumber(250);
   const cap = goal.mul(1.25);
   const maximumBonusTokens = minimumInvestment.mul(5).mul(rate);
-  const validInvestment = minimumInvestment.add(new BigNumber(100000));
+  const validInvestment = minimumInvestment.mul(2);
   const totalSupply = rate.mul(cap);
   const moreThanTxCost = new BigNumber(300000000000000000);
 
@@ -296,7 +296,7 @@ contract('BullTokenMainsale', function([
     let balance = await token.balanceOf(purchaser);
 
     let expectedBaseTokens = validInvestment.mul(rate);
-    let expectedBonusTokens = validInvestment.mul(rate).mul(bonusInPercent).div(100);
+    let expectedBonusTokens = expectedBaseTokens.mul(bonusInPercent).div(100);
     expect(balance).to.bignumber.equal(expectedBaseTokens.add(expectedBonusTokens));
   }
 
@@ -383,6 +383,21 @@ contract('BullTokenMainsale', function([
 
       const bonusInPercent = 0;
       await expectTimeToTriggerBonus.call(this, pointInTime, bonusInPercent);
+    });
+
+    it("never gives more than max bonus tokens", async function() {
+      let pointInTime = this.startTime + duration.seconds(1);
+      await increaseTimeTo(pointInTime);
+
+      const purchaserBalanceBeforePurchase = await token.balanceOf(purchaser2);
+
+      let priceForBuyingAllBonusTokens = maximumBonusTokens.div(rate);
+      await this.crowdsale.sendTransaction({ from: purchaser2, value: priceForBuyingAllBonusTokens });
+
+      const purchaserBalanceAfterPurchase = await token.balanceOf(purchaser2);
+
+      const tokensReceived = purchaserBalanceAfterPurchase.sub(purchaserBalanceBeforePurchase);
+      expect(tokensReceived).to.bignumber.equal(maximumBonusTokens);
     });
 
   });
